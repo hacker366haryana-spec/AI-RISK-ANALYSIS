@@ -5,15 +5,39 @@ import { Mic, MicOff, Radio, Volume2 } from 'lucide-react'
 
 type WakeState = 'idle' | 'listening' | 'processing' | 'speaking'
 
-const TRANSCRIPTS = [
-  'What is the current Bitcoin price?',
-  'Open YouTube',
-  'Bhai IPL ka score kya hai?',
-  'Tell me about machine learning',
-  'Latest AI news kya hai?',
-  'Set a timer for 10 minutes',
-  'Search Python tutorials on YouTube',
-  'Kya weather aaj accha hai?',
+const EXCHANGES: { query: string; response: string }[] = [
+  {
+    query: 'What is the current Bitcoin price?',
+    response: 'Bitcoin is currently trading at 67 thousand 4 hundred 20 dollars, up 2.4 percent in the last 24 hours.',
+  },
+  {
+    query: 'Open YouTube',
+    response: 'Sure, launching YouTube in your browser right now.',
+  },
+  {
+    query: 'Bhai IPL ka score kya hai?',
+    response: 'Bhai, CSK vs MI chal raha hai. CSK ka score hai 187 for 4 in 18 overs.',
+  },
+  {
+    query: 'Tell me about machine learning',
+    response: 'Machine learning is a branch of artificial intelligence that enables systems to learn from data without being explicitly programmed.',
+  },
+  {
+    query: 'Latest AI news kya hai?',
+    response: 'Aaj ki badi khabar: OpenAI ne GPT-5 announce kiya hai, aur Google ka Gemini Ultra 2.0 bhi launch hua.',
+  },
+  {
+    query: 'Set a timer for 10 minutes',
+    response: 'Timer set for 10 minutes. I will alert you when it is done.',
+  },
+  {
+    query: 'Search Python tutorials on YouTube',
+    response: 'Searching for Python tutorials on YouTube. Opening results now.',
+  },
+  {
+    query: 'Kya weather aaj accha hai?',
+    response: 'Aaj 32 degree Celsius aur sunny hai. Humidity 68 percent hai. Din bhar clear sky rahegi.',
+  },
 ]
 
 const STATE_LABELS: Record<WakeState, string> = {
@@ -35,13 +59,50 @@ const BAR_COUNT = 32
 export function VoiceActivity() {
   const [state, setState] = useState<WakeState>('idle')
   const [transcript, setTranscript] = useState('')
+  const [response, setResponse] = useState('')
   const [confidence, setConfidence] = useState(0)
+  const [speechSupported, setSpeechSupported] = useState(false)
+  const [speechEnabled, setSpeechEnabled] = useState(true)
   const [barHeights, setBarHeights] = useState<number[]>(Array(BAR_COUNT).fill(0.05))
   const animFrameRef = useRef<number | null>(null)
   const stateRef = useRef<WakeState>('idle')
   const cycleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
 
   stateRef.current = state
+
+  // Detect speech synthesis support on client only
+  useEffect(() => {
+    setSpeechSupported(typeof window !== 'undefined' && 'speechSynthesis' in window)
+  }, [])
+
+  // Speak response text when state becomes 'speaking'
+  useEffect(() => {
+    if (state !== 'speaking' || !speechSupported || !speechEnabled || !response) return
+
+    // Cancel any in-progress speech first
+    window.speechSynthesis.cancel()
+
+    const utterance = new SpeechSynthesisUtterance(response)
+    utteranceRef.current = utterance
+
+    // Prefer a natural-sounding voice
+    const voices = window.speechSynthesis.getVoices()
+    const preferred = voices.find(
+      v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Premium'))
+    ) || voices.find(v => v.lang.startsWith('en')) || voices[0]
+    if (preferred) utterance.voice = preferred
+
+    utterance.rate = 1.05
+    utterance.pitch = 1
+    utterance.volume = 1
+
+    window.speechSynthesis.speak(utterance)
+
+    return () => {
+      window.speechSynthesis.cancel()
+    }
+  }, [state, response, speechSupported, speechEnabled])
 
   // Animate waveform bars
   useEffect(() => {
@@ -70,26 +131,34 @@ export function VoiceActivity() {
       // idle → listening
       setState('listening')
       setTranscript('')
+      setResponse('')
       setConfidence(0)
 
-      const transcript = TRANSCRIPTS[Math.floor(Math.random() * TRANSCRIPTS.length)]
+      const exchange = EXCHANGES[Math.floor(Math.random() * EXCHANGES.length)]
       let charIndex = 0
 
       const typeInterval = setInterval(() => {
         charIndex++
-        setTranscript(transcript.slice(0, charIndex))
+        setTranscript(exchange.query.slice(0, charIndex))
         setConfidence(prev => Math.min(97, prev + Math.random() * 8))
-        if (charIndex >= transcript.length) {
+        if (charIndex >= exchange.query.length) {
           clearInterval(typeInterval)
           setState('processing')
           setTimeout(() => {
+            // Set response before switching to speaking so the useEffect can read it
+            setResponse(exchange.response)
             setState('speaking')
+
+            // Duration: roughly match how long it takes to speak the response
+            const speakDurationMs = Math.max(2500, exchange.response.split(' ').length * 350)
             setTimeout(() => {
+              window.speechSynthesis?.cancel()
               setState('idle')
               setTranscript('')
+              setResponse('')
               setConfidence(0)
               cycleTimerRef.current = setTimeout(runCycle, 4000 + Math.random() * 3000)
-            }, 2500 + Math.random() * 1500)
+            }, speakDurationMs)
           }, 900 + Math.random() * 600)
         }
       }, 40 + Math.random() * 20)
@@ -98,10 +167,18 @@ export function VoiceActivity() {
     cycleTimerRef.current = setTimeout(runCycle, 2000)
     return () => {
       if (cycleTimerRef.current) clearTimeout(cycleTimerRef.current)
+      window.speechSynthesis?.cancel()
     }
   }, [])
 
   const isActive = state !== 'idle'
+
+  const toggleSpeech = () => {
+    setSpeechEnabled(prev => !prev)
+    if (!speechEnabled) {
+      window.speechSynthesis?.cancel()
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4 h-full">
@@ -114,6 +191,20 @@ export function VoiceActivity() {
           </span>
         </div>
         <div className="flex items-center gap-3">
+          {speechSupported && (
+            <button
+              onClick={toggleSpeech}
+              aria-label={speechEnabled ? 'Mute TTS' : 'Unmute TTS'}
+              title={speechEnabled ? 'Mute TTS' : 'Unmute TTS'}
+              className={`text-xs font-mono px-2 py-0.5 rounded border transition-colors ${
+                speechEnabled
+                  ? 'bg-green/10 border-green/20 text-green hover:bg-green/20'
+                  : 'bg-muted/10 border-muted text-muted-foreground hover:bg-muted/20'
+              }`}
+            >
+              {speechEnabled ? 'TTS ON' : 'TTS OFF'}
+            </button>
+          )}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
             <Radio className="w-3 h-3" />
             <span>44.1 kHz</span>
@@ -157,13 +248,25 @@ export function VoiceActivity() {
       {/* STT Transcript */}
       <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">STT Transcript</span>
+          <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+            {state === 'speaking' ? 'HARDIK Response' : 'STT Transcript'}
+          </span>
           {state === 'listening' && confidence > 0 && (
             <span className="text-xs font-mono text-cyan">{confidence.toFixed(0)}% confidence</span>
           )}
+          {state === 'speaking' && (
+            <span className="text-xs font-mono text-green animate-pulse">SPEAKING</span>
+          )}
         </div>
-        <div className="bg-surface rounded border border-border px-3 py-2 min-h-[40px] flex items-center">
-          {transcript ? (
+        <div className={`bg-surface rounded border px-3 py-2 min-h-[40px] flex items-center transition-colors ${
+          state === 'speaking' ? 'border-green/30' : 'border-border'
+        }`}>
+          {state === 'speaking' && response ? (
+            <p className="text-sm font-mono text-green leading-relaxed">
+              {response}
+              <span className="inline-block w-[2px] h-[14px] bg-green ml-[2px] align-middle animate-pulse" />
+            </p>
+          ) : transcript ? (
             <p className="text-sm font-mono text-foreground leading-relaxed">
               {transcript}
               {state === 'listening' && (
