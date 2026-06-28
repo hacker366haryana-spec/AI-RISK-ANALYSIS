@@ -1,8 +1,39 @@
 'use client'
 
-import { useState } from 'react'
-import { Shield, AlertTriangle, Check, X, Settings, Globe, HardDrive, Wifi } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Shield, AlertTriangle, Check, X, Settings, Globe, HardDrive, Wifi, Key, Eye, EyeOff, Save } from 'lucide-react'
 import { INITIAL_PERMISSIONS, type Permission } from '@/lib/mock-data'
+
+const API_KEY_FIELDS = [
+  {
+    id: 'OPENAI_API_KEY',
+    label: 'OpenAI API Key',
+    description: 'Used by GPT-4o-mini for reasoning, chat, and intent classification.',
+    placeholder: 'sk-...',
+    docsUrl: 'https://platform.openai.com/api-keys',
+  },
+  {
+    id: 'ELEVENLABS_API_KEY',
+    label: 'ElevenLabs API Key',
+    description: 'Used for high-quality streaming text-to-speech voice output.',
+    placeholder: 'el-...',
+    docsUrl: 'https://elevenlabs.io/app/settings/api-keys',
+  },
+  {
+    id: 'SERPAPI_API_KEY',
+    label: 'SerpAPI Key',
+    description: 'Used for Google and YouTube search queries.',
+    placeholder: 'serp-...',
+    docsUrl: 'https://serpapi.com/manage-api-key',
+  },
+  {
+    id: 'PORCUPINE_ACCESS_KEY',
+    label: 'Porcupine Access Key',
+    description: 'Used by Picovoice Porcupine for "Hey Hardik" wake word detection.',
+    placeholder: 'pvk-...',
+    docsUrl: 'https://console.picovoice.ai/',
+  },
+]
 
 const CATEGORY_CONFIG = {
   hardware: { label: 'Hardware', icon: <HardDrive className="w-3.5 h-3.5" /> },
@@ -28,6 +59,121 @@ const VOICE_OPTIONS = [
   { value: 'adam', label: 'Adam — Natural Male' },
   { value: 'domi', label: 'Domi — Energetic Female' },
 ]
+
+function ApiKeysPanel() {
+  const [keys, setKeys] = useState<Record<string, string>>({})
+  const [visible, setVisible] = useState<Record<string, boolean>>({})
+  const [saved, setSaved] = useState<Record<string, boolean>>({})
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const stored: Record<string, string> = {}
+    API_KEY_FIELDS.forEach(f => {
+      const val = localStorage.getItem(`hardik_${f.id}`)
+      if (val) stored[f.id] = val
+    })
+    setKeys(stored)
+  }, [])
+
+  const handleChange = (id: string, value: string) => {
+    setKeys(prev => ({ ...prev, [id]: value }))
+    setSaved(prev => ({ ...prev, [id]: false }))
+  }
+
+  const handleSave = (id: string) => {
+    if (keys[id]) {
+      localStorage.setItem(`hardik_${id}`, keys[id])
+    } else {
+      localStorage.removeItem(`hardik_${id}`)
+    }
+    setSaved(prev => ({ ...prev, [id]: true }))
+    setTimeout(() => setSaved(prev => ({ ...prev, [id]: false })), 2000)
+  }
+
+  const toggleVisible = (id: string) => {
+    setVisible(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  const isSaved = (id: string) => !!localStorage.getItem(`hardik_${id}`)
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2 px-3 py-2 rounded bg-amber/5 border border-amber/20">
+        <AlertTriangle className="w-4 h-4 text-amber shrink-0" />
+        <p className="text-xs font-mono text-amber leading-relaxed">
+          Keys are stored in browser localStorage only — never sent to any server.
+        </p>
+      </div>
+
+      {API_KEY_FIELDS.map(field => (
+        <div key={field.id} className="bg-surface rounded border border-border p-3 flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Key className="w-3.5 h-3.5 text-cyan shrink-0" />
+              <span className="text-sm font-semibold text-foreground">{field.label}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {isSaved(field.id) && (
+                <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-green/10 border border-green/20 text-green">
+                  SET
+                </span>
+              )}
+              <a
+                href={field.docsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-mono text-muted-foreground hover:text-cyan transition-colors underline underline-offset-2"
+              >
+                Get key
+              </a>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground leading-relaxed">{field.description}</p>
+
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type={visible[field.id] ? 'text' : 'password'}
+                value={keys[field.id] ?? ''}
+                onChange={e => handleChange(field.id, e.target.value)}
+                placeholder={field.placeholder}
+                spellCheck={false}
+                autoComplete="off"
+                className="w-full bg-background border border-border rounded px-3 py-1.5 pr-9 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-cyan/50 transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => toggleVisible(field.id)}
+                aria-label={visible[field.id] ? 'Hide key' : 'Show key'}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {visible[field.id]
+                  ? <EyeOff className="w-3.5 h-3.5" />
+                  : <Eye className="w-3.5 h-3.5" />
+                }
+              </button>
+            </div>
+            <button
+              onClick={() => handleSave(field.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-semibold border transition-all shrink-0 ${
+                saved[field.id]
+                  ? 'bg-green/10 border-green/30 text-green'
+                  : 'bg-cyan/10 border-cyan/30 text-cyan hover:bg-cyan/20'
+              }`}
+            >
+              {saved[field.id] ? (
+                <><Check className="w-3 h-3" /> Saved</>
+              ) : (
+                <><Save className="w-3 h-3" /> Save</>
+              )}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function PermissionToggle({ permission, onToggle }: { permission: Permission; onToggle: (id: string) => void }) {
   return (
@@ -77,7 +223,7 @@ export function SettingsPermissions() {
   const [model, setModel] = useState('gpt-4o-mini')
   const [voice, setVoice] = useState('rachel')
   const [activeCategory, setActiveCategory] = useState<Permission['category']>('hardware')
-  const [activeTab, setActiveTab] = useState<'permissions' | 'preferences'>('permissions')
+  const [activeTab, setActiveTab] = useState<'permissions' | 'preferences' | 'api-keys'>('permissions')
 
   const togglePermission = (id: string) => {
     setPermissions(prev =>
@@ -92,7 +238,7 @@ export function SettingsPermissions() {
     <div className="flex flex-col gap-3 h-full">
       {/* Tab bar */}
       <div className="flex gap-1 bg-surface rounded border border-border p-1">
-        {(['permissions', 'preferences'] as const).map(tab => (
+        {(['permissions', 'preferences', 'api-keys'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -102,7 +248,7 @@ export function SettingsPermissions() {
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {tab}
+            {tab === 'api-keys' ? 'API Keys' : tab}
           </button>
         ))}
       </div>
@@ -145,6 +291,10 @@ export function SettingsPermissions() {
             )}
           </div>
         </>
+      ) : activeTab === 'api-keys' ? (
+        <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1">
+          <ApiKeysPanel />
+        </div>
       ) : (
         <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1">
           {/* Language */}
