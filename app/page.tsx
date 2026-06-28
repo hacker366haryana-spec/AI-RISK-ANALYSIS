@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Menu,
   X,
+  Camera,
 } from 'lucide-react'
 import { DashboardPanel } from '@/components/dashboard-panel'
 import { VoiceActivity } from '@/components/voice-activity'
@@ -19,8 +20,9 @@ import { IntentLog } from '@/components/intent-log'
 import { SystemHealth } from '@/components/system-health'
 import { ConversationHistory } from '@/components/conversation-history'
 import { SettingsPermissions } from '@/components/settings-permissions'
+import { CameraFeed } from '@/components/camera-feed'
 
-type Tab = 'voice' | 'intents' | 'conversation' | 'health' | 'settings'
+type Tab = 'voice' | 'intents' | 'conversation' | 'health' | 'settings' | 'camera'
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'voice', label: 'Voice', icon: <Mic className="w-4 h-4" /> },
@@ -28,6 +30,7 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'conversation', label: 'History', icon: <MessageSquare className="w-4 h-4" /> },
   { key: 'health', label: 'Health', icon: <Activity className="w-4 h-4" /> },
   { key: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
+  { key: 'camera', label: 'Camera', icon: <Camera className="w-4 h-4" /> },
 ]
 
 function LiveClock() {
@@ -225,6 +228,20 @@ export default function HardikDashboard() {
             >
               <SettingsPermissions />
             </DashboardPanel>
+
+            {/* Camera */}
+            <DashboardPanel
+              title="Camera Feed"
+              subtitle="Live device camera stream"
+              icon={<Camera className="w-4 h-4" />}
+              badge={
+                <span className="text-xs font-mono px-2 py-0.5 rounded bg-green/10 text-green border border-green/20">
+                  CAM
+                </span>
+              }
+            >
+              <CameraFeed />
+            </DashboardPanel>
           </div>
 
           {/* Mobile: tab-based single panel */}
@@ -306,6 +323,21 @@ export default function HardikDashboard() {
                   className="h-full"
                 >
                   <SettingsPermissions />
+                </DashboardPanel>
+              )}
+              {activeTab === 'camera' && (
+                <DashboardPanel
+                  title="Camera Feed"
+                  subtitle="Live device camera stream"
+                  icon={<Camera className="w-4 h-4" />}
+                  className="h-full"
+                  badge={
+                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-green/10 text-green border border-green/20">
+                      CAM
+                    </span>
+                  }
+                >
+                  <CameraFeed />
                 </DashboardPanel>
               )}
             </div>
